@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpticDigit Printer Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: a two-column workbench — bill controls on the left, a live thermal-paper preview with print actions on the right; stacks to one column on phones */
+:root {
+  --bg: #f5f3f0;
+  --surface: #ffffff;
+  --fg: #1f1b17;
+  --muted: #6c645b;
+  --line: #e3ddd5;
+  --accent: #e2600b;
+  --accent-fg: #ffffff;
+  --accent-soft: #fdeee3;
+  --ok: #1d8049;
+  --ok-soft: #e3f4ea;
+  --err: #bb3326;
+  --err-soft: #fbe7e4;
+  --paper: #fffdf8;
+  --ink: #141414;
+  --font-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161412; --surface: #201d1a; --fg: #eeeae4; --muted: #a59d93; --line: #36312b;
+    --accent: #f27c2f; --accent-fg: #1a0d03; --accent-soft: #3a2415;
+    --ok: #57c98a; --ok-soft: #173326; --err: #f0776b; --err-soft: #3d1c18;
+    --paper: #f4f0e8; --ink: #141414; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161412; --surface: #201d1a; --fg: #eeeae4; --muted: #a59d93; --line: #36312b;
+  --accent: #f27c2f; --accent-fg: #1a0d03; --accent-soft: #3a2415;
+  --ok: #57c98a; --ok-soft: #173326; --err: #f0776b; --err-soft: #3d1c18;
+  --paper: #f4f0e8; --ink: #141414; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45; padding: 20px 16px 40px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; justify-content: space-between; }
+.brand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand h1 { margin: 0; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.brand p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.conn { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; font-size: 0.82rem; font-weight: 600; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.on { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+.pill.on .dot { background: var(--ok); }
+.pill.busy .dot { background: var(--accent); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .pill.busy .dot { animation: none; } }
+
+button { font: inherit; font-weight: 600; font-size: 0.9rem; border-radius: 10px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { filter: brightness(1.06); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 8px; }
+button.ghost:hover:not(:disabled) { color: var(--err); border-color: transparent; }
+
+.banner { border-radius: 12px; padding: 12px 14px; font-size: 0.9rem; background: var(--err-soft); color: var(--fg); border: 1px solid var(--line); }
+.banner strong { color: var(--err); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+label { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; font-weight: 600; color: var(--muted); min-width: 0; }
+input, select { font: inherit; font-size: 0.92rem; font-weight: 500; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+input.mono { font-family: var(--font-mono); font-size: 0.82rem; }
+.hint { font-size: 0.8rem; color: var(--muted); margin: 0; }
+
+.items { display: flex; flex-direction: column; gap: 8px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) 64px 96px 36px; gap: 8px; align-items: center; }
+.item.head { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+@media (max-width: 480px) { .item { grid-template-columns: minmax(0, 1fr) 52px 80px 32px; } }
+
+.rx { display: grid; grid-template-columns: 34px repeat(4, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.rx .eye { font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; color: var(--fg); }
+.rx .h { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--fg); font-weight: 500; }
+.toggle input { width: auto; }
+
+aside { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (max-width: 860px) { aside { position: static; } }
+
+.paper-wrap { background: var(--line); border-radius: 14px; padding: 18px 0; display: flex; justify-content: center; overflow-x: auto; }
+.paper { background: var(--paper); color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; padding: 14px 12px 22px; box-shadow: 0 1px 2px rgba(0,0,0,.12); white-space: pre; position: relative; }
+.paper::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 6px; background: linear-gradient(-45deg, transparent 4px, var(--paper) 0) 0 0/8px 8px, linear-gradient(45deg, transparent 4px, var(--paper) 0) 0 0/8px 8px; }
+.paper .l { display: block; }
+.paper .c { text-align: center; }
+.paper .r { text-align: right; }
+.paper .b { font-weight: 700; }
+.paper .big { font-size: 2em; line-height: 1.25; font-weight: 700; }
+.paper-meta { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions .primary { grid-column: 1 / -1; padding: 12px; font-size: 1rem; }
+
+.log { font-family: var(--font-mono); font-size: 0.76rem; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; height: 150px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.log .e { color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+.log .e.ok { color: var(--ok); }
+.log .e.err { color: var(--err); }
+.row2 { display: flex; gap: 8px; }
+.row2 input { flex: 1; }
+details summary { cursor: pointer; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; list-style: none; }
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "+ "; }
+details[open] summary::before { content: "− "; }
+details[open] .panel-body { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>OpticDigit Printer Test</h1>
+      <p>Connect a BLE thermal printer and print a sample shop bill</p>
+    </div>
+    <div class="conn">
+      <span class="pill" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
+      <button class="primary" id="btnConnect" type="button">Connect printer</button>
+      <button id="btnDisconnect" type="button" hidden>Disconnect</button>
+    </div>
+  </header>
+
+  <div class="banner" id="unsupported" hidden>
+    <strong>Bluetooth isn't available here.</strong> <span id="unsupportedMsg">Open this page in Chrome on Android or Windows, over HTTPS. iPhone browsers don't support Web Bluetooth.</span>
+  </div>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="panel">
+        <h2>Shop</h2>
+        <div class="fields">
+          <label>Shop name<input id="shopName" value="Netra Opticals"></label>
+          <label>Phone<input id="shopPhone" value="98220 41736"></label>
+        </div>
+        <label>Address<input id="shopAddress" value="Rajarampuri 5th Lane, Kolhapur"></label>
+      </section>
+
+      <section class="panel">
+        <h2>Bill</h2>
+        <div class="fields">
+          <label>Bill no.<input id="billNo" value="OD-1042"></label>
+          <label>Date<input id="billDate" value=""></label>
+          <label>Customer<input id="custName" value="Pooja Kulkarni"></label>
+          <label>Mobile<input id="custPhone" value="94221 85360"></label>
+        </div>
+
+        <div class="items" id="items">
+          <div class="item head"><span>Item</span><span>Qty</span><span>Rate (Rs.)</span><span></span></div>
+        </div>
+        <div><button type="button" id="btnAddItem">Add item</button></div>
+
+        <div class="fields">
+          <label>Discount (Rs.)<input id="discount" type="number" min="0" value="300"></label>
+          <label>Advance paid (Rs.)<input id="paid" type="number" min="0" value="2000"></label>
+          <label>Delivery date<input id="delivery" value=""></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <label class="toggle"><input type="checkbox" id="rxOn" checked> Print prescription on the bill</label>
+        <div class="rx" id="rxGrid">
+          <span></span><span class="h">SPH</span><span class="h">CYL</span><span class="h">AXIS</span><span class="h">ADD</span>
+          <span class="eye">R</span><input class="mono" id="rSph" value="-1.25"><input class="mono" id="rCyl" value="-0.50"><input class="mono" id="rAxis" value="180"><input class="mono" id="rAdd" value="">
+          <span class="eye">L</span><input class="mono" id="lSph" value="-1.00"><input class="mono" id="lCyl" value="-0.75"><input class="mono" id="lAxis" value="170"><input class="mono" id="lAdd" value="">
+        </div>
+      </section>
+
+      <section class="panel">
+        <details>
+          <summary>Printer settings &amp; debugging</summary>
+          <div class="panel-body">
+            <div class="fields">
+              <label>Paper width
+                <select id="width">
+                  <option value="32" selected>58 mm (32 chars)</option>
+                  <option value="48">80 mm (48 chars)</option>
+                </select>
+              </label>
+              <label>Chunk size (bytes)<input id="chunk" type="number" min="20" max="512" value="20"></label>
+              <label>Delay between chunks (ms)<input id="delay" type="number" min="0" max="200" value="20"></label>
+            </div>
+            <label>Extra service UUID (only if the printer isn't detected)<input class="mono" id="extraUuid" placeholder="e.g. 000018f0-0000-1000-8000-00805f9b34fb"></label>
+            <p class="hint">Leave empty normally. Long bills cut off? Raise the delay to 40–50 ms.</p>
+            <label>Send raw hex bytes
+              <span class="row2"><input class="mono" id="hex" value="1B4048656C6C6F0A0A0A"><button type="button" id="btnHex">Send</button></span>
+            </label>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <aside>
+      <div class="paper-meta"><span>Preview</span><span id="byteCount">0 bytes</span></div>
+      <div class="paper-wrap"><div class="paper" id="paper"></div></div>
+      <div class="actions">
+        <button class="primary" type="button" id="btnPrint" disabled>Print bill</button>
+        <button type="button" id="btnTest" disabled>Test print</button>
+        <button type="button" id="btnClear">Clear log</button>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  /* ---------- Bluetooth printer ---------- */
+  const KNOWN_SERVICES = [
+    '000018f0-0000-1000-8000-00805f9b34fb', // most cheap 58mm printers (0x18F0)
+    'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // common Chinese POS printers
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Microchip/ISSC transparent UART
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART
+    '0000ff00-0000-1000-8000-00805f9b34fb',
+    '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 style modules
+    '0000fff0-0000-1000-8000-00805f9b34fb',
+    '0000ae30-0000-1000-8000-00805f9b34fb', // mini/portable label & receipt printers
+    '0000ae00-0000-1000-8000-00805f9b34fb',
+    '0000af30-0000-1000-8000-00805f9b34fb',
+    '0000fee7-0000-1000-8000-00805f9b34fb',
+    '0000ff80-0000-1000-8000-00805f9b34fb',
+    '0000ffb0-0000-1000-8000-00805f9b34fb',
+    '0000ffd0-0000-1000-8000-00805f9b34fb',
+  ];
+  let device = null, characteristic = null, busy = false, reconnecting = false, manualDisconnect = false, reconnectTimer = null;
+  const STORAGE_KEY = 'opticdigit.printerId';
+  const store = {
+    get: () => { try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; } },
+    set: (v) => { try { localStorage.setItem(STORAGE_KEY, v); } catch (e) {} },
+    clear: () => { try { localStorage.removeItem(STORAGE_KEY); } catch (e) {} },
+  };
+  const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const supported = typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  const connected = () => !!(characteristic && device && device.gatt && device.gatt.connected);
+
+  function log(msg, kind = '') {
+    const el = document.createElement('div');
+    el.className = 'e ' + kind;
+    const t = new Date().toLocaleTimeString('en-IN', { hour12: false });
+    el.textContent = t + '  ' + msg;
+    $('log').appendChild(el);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  function setUi() {
+    const on = connected();
+    const pill = $('status');
+    pill.classList.toggle('on', on);
+    pill.classList.toggle('busy', busy);
+    pill.classList.toggle('busy', busy || reconnecting);
+    $('statusText').textContent = busy ? 'Working…' : on ? 'Connected · ' + (device.name || 'Printer') : reconnecting ? 'Reconnecting…' : 'Not connected';
+    $('btnConnect').hidden = on || reconnecting;
+    $('btnDisconnect').hidden = !on;
+    $('btnConnect').disabled = busy || !supported;
+    $('btnPrint').disabled = busy || !on;
+    $('btnTest').disabled = busy || !on;
+    $('btnHex').disabled = busy || !on;
+  }
+
+  async function attach() {
+    const server = await withTimeout(device.gatt.connect(), 10000, 'Printer did not respond. Is it switched on?');
+    const services = await server.getPrimaryServices();
+    log('Found ' + services.length + ' service(s)');
+    const known = currentServices();
+    services.sort((a, b) => known.indexOf(b.uuid) - known.indexOf(a.uuid));
+    for (const s of services) {
+      let chars = [];
+      try { chars = await s.getCharacteristics(); } catch (e) { continue; }
+      const w = chars.find((c) => c.properties.writeWithoutResponse) || chars.find((c) => c.properties.write);
+      if (w) {
+        characteristic = w;
+        log('Using service ' + s.uuid + ' / characteristic ' + w.uuid, 'ok');
+        clearTimeout(reconnectTimer);
+        setUi();
+        return;
+      }
+    }
+    throw new Error('Connected, but no writable characteristic found. Tell your developer the printer model so its service can be added.');
+  }
+
+  function currentServices() {
+    const extra = $('extraUuid').value.trim().toLowerCase();
+    return extra ? [extra, ...KNOWN_SERVICES] : KNOWN_SERVICES.slice();
+  }
+
+  function useDevice(d) {
+    if (device === d) return;
+    device = d;
+    device.addEventListener('gattserverdisconnected', () => {
+      characteristic = null;
+      setUi();
+      if (!manualDisconnect) { log('Printer disconnected, will reconnect automatically'); scheduleReconnect(1); }
+    });
+  }
+
+  function scheduleReconnect(attempt) {
+    clearTimeout(reconnectTimer);
+    const wait = Math.min(30000, 2000 * Math.pow(2, attempt - 1));
+    reconnectTimer = setTimeout(async () => {
+      if (manualDisconnect || connected() || !device) return;
+      try { await attach(); log('Reconnected', 'ok'); }
+      catch (e) { scheduleReconnect(attempt + 1); }
+    }, wait);
+  }
+
+  async function connect() {
+    const picked = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: currentServices() });
+    log('Selected ' + (picked.name || 'unnamed device'));
+    manualDisconnect = false;
+    useDevice(picked);
+    await attach();
+    store.set(picked.id);
+    log(canAutoReconnect() ? 'Printer saved. It will reconnect by itself next time.' : 'Connected. Auto-reconnect after reload is not available in this Chrome (see note).');
+  }
+
+  const canAutoReconnect = () => supported && typeof navigator.bluetooth.getDevices === 'function';
+
+  function waitForAdvertisement(d, ms) {
+    if (typeof d.watchAdvertisements !== 'function') return sleep(ms);
+    return new Promise((resolve, reject) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => { ctrl.abort(); reject(new Error('Printer not found nearby')); }, ms);
+      d.addEventListener('advertisementreceived', () => { clearTimeout(timer); ctrl.abort(); resolve(); }, { once: true });
+      d.watchAdvertisements({ signal: ctrl.signal }).catch(() => { clearTimeout(timer); resolve(); });
+    });
+  }
+
+  async function reconnectSaved() {
+    if (!canAutoReconnect()) {
+      log('Auto-reconnect needs Chrome support for remembered devices. If it stays off, enable chrome://flags/#enable-web-bluetooth-new-permissions-backend');
+      return;
+    }
+    const id = store.get();
+    if (!id) { log('Ready. Tap Connect printer once; after that it reconnects by itself.'); return; }
+    const devices = await navigator.bluetooth.getDevices();
+    const saved = devices.find((d) => d.id === id);
+    if (!saved) { log('Saved printer not found. Tap Connect printer.'); store.clear(); return; }
+    manualDisconnect = false;
+    useDevice(saved);
+    reconnecting = true; setUi();
+    log('Reconnecting to ' + (saved.name || 'saved printer') + '…');
+    try {
+      try { await attach(); }
+      catch (e) { await waitForAdvertisement(saved, 15000); await attach(); }
+      log('Reconnected automatically', 'ok');
+    } catch (e) {
+      log('Printer not reachable yet (' + e.message + '). Will keep trying.');
+      scheduleReconnect(1);
+    } finally { reconnecting = false; setUi(); }
+  }
+
+  async function send(bytes) {
+    if (!connected()) {
+      if (!device) throw new Error('Printer not connected. Tap Connect printer first.');
+      log('Reconnecting…');
+      await attach();
+    }
+    const size = Math.max(20, parseInt($('chunk').value, 10) || 20);
+    const delay = Math.max(0, parseInt($('delay').value, 10) || 0);
+    for (let i = 0; i < bytes.length; i += size) {
+      const chunk = bytes.slice(i, i + size);
+      if (characteristic.properties.writeWithoutResponse) await characteristic.writeValueWithoutResponse(chunk);
+      else await characteristic.writeValue(chunk);
+      if (delay) await sleep(delay);
+    }
+    log('Sent ' + bytes.length + ' bytes', 'ok');
+  }
+
+  async function run(label, fn) {
+    if (busy) return;
+    busy = true; setUi();
+    try { await fn(); }
+    catch (e) {
+      if (e && e.name === 'NotFoundError') log('Printer picker closed without choosing');
+      else if (e && (e.name === 'SecurityError' || /permission|policy|not allowed/i.test(e.message || ''))) {
+        log(label + ' blocked: ' + e.message, 'err');
+        $('unsupported').hidden = false;
+        $('unsupportedMsg').textContent = 'This preview frame blocks Bluetooth. Download printer-test.html, host it on an HTTPS address (for example on app.opticdigit.com), and open it in Chrome on the shop phone or PC.';
+      } else log(label + ' failed: ' + (e && e.message ? e.message : e), 'err');
+    } finally { busy = false; setUi(); }
+  }
+
+  /* ---------- Receipt builder: ESC/POS bytes + preview ---------- */
+  const ESC = 0x1b, GS = 0x1d;
+  const encode = (s) => [...String(s).replace(/₹/g, 'Rs.')].map((ch) => { const c = ch.charCodeAt(0); return c < 128 ? c : 0x3f; });
+
+  class Receipt {
+    constructor(width) { this.width = width; this.bytes = [ESC, 0x40]; this.lines = []; this.st = { align: 'l', bold: false, big: false }; }
+    raw(...b) { this.bytes.push(...b); return this; }
+    align(a) { this.st.align = a[0]; return this.raw(ESC, 0x61, { l: 0, c: 1, r: 2 }[a[0]]); }
+    bold(on = true) { this.st.bold = on; return this.raw(ESC, 0x45, on ? 1 : 0); }
+    big(on = true) { this.st.big = on; return this.raw(GS, 0x21, on ? 0x11 : 0x00); }
+    line(s = '') {
+      const max = this.st.big ? Math.floor(this.width / 2) : this.width;
+      const text = String(s).replace(/₹/g, 'Rs.').replace(/[^\x00-\x7f]/g, '?');
+      this.bytes.push(...encode(text + '\n'));
+      // preview wraps the way the printer does
+      if (text.length === 0) this.lines.push({ ...this.st, text: '' });
+      for (let i = 0; i < text.length; i += max) this.lines.push({ ...this.st, text: text.slice(i, i + max) });
+      return this;
+    }
+    divider(ch = '-') { return this.line(ch.repeat(this.width)); }
+    row(left, right) {
+      left = String(left); right = String(right);
+      const maxL = this.width - right.length - 1;
+      if (left.length > maxL) left = left.slice(0, maxL);
+      return this.line(left + ' '.repeat(Math.max(1, this.width - left.length - right.length)) + right);
+    }
+    feed(n = 3) { for (let i = 0; i < n; i++) { this.bytes.push(0x0a); this.lines.push({ ...this.st, text: '' }); } return this; }
+    cut() { return this.raw(GS, 0x56, 0x00); }
+    build() { return new Uint8Array(this.bytes); }
+  }
+
+  /* ---------- Bill data ---------- */
+  let items = [
+    { name: 'Full-rim frame, matte black 52-18', qty: 1, price: 1800 },
+    { name: 'Blue-cut lenses 1.56 (pair)', qty: 1, price: 2400 },
+    { name: 'Lens case + cleaning kit', qty: 1, price: 150 },
+  ];
+
+  const today = new Date();
+  const fmt = (d) => d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  $('billDate').value = fmt(today);
+  $('delivery').value = fmt(new Date(today.getTime() + 3 * 86400000));
+
+  function renderItems() {
+    const box = $('items');
+    box.querySelectorAll('.item:not(.head)').forEach((n) => n.remove());
+    items.forEach((it, i) => {
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML =
+        '<input aria-label="Item name" id="itName' + i + '">' +
+        '<input aria-label="Quantity" type="number" min="1" id="itQty' + i + '">' +
+        '<input aria-label="Rate" type="number" min="0" id="itPrice' + i + '">' +
+        '<button type="button" class="ghost" aria-label="Remove item">✕</button>';
+      const [n, q, p, del] = row.children;
+      n.value = it.name; q.value = it.qty; p.value = it.price;
+      n.addEventListener('input', () => { it.name = n.value; preview(); });
+      q.addEventListener('input', () => { it.qty = Number(q.value) || 0; preview(); });
+      p.addEventListener('input', () => { it.price = Number(p.value) || 0; preview(); });
+      del.addEventListener('click', () => { items.splice(i, 1); renderItems(); preview(); });
+      box.appendChild(row);
+    });
+  }
+
+  const money = (n) => 'Rs.' + Number(n || 0).toFixed(2);
+  const v = (id) => $(id).value.trim();
+
+  function buildBill() {
+    const r = new Receipt(parseInt($('width').value, 10));
+    r.align('center').bold().big().line(v('shopName') || 'Shop').big(false).bold(false);
+    if (v('shopAddress')) r.line(v('shopAddress'));
+    if (v('shopPhone')) r.line('Ph: ' + v('shopPhone'));
+    r.align('left').divider();
+    r.row('Bill: ' + v('billNo'), v('billDate'));
+    if (v('custName')) r.line('Customer: ' + v('custName'));
+    if (v('custPhone')) r.line('Mobile: ' + v('custPhone'));
+    r.divider();
+
+    let sub = 0;
+    items.forEach((it) => {
+      const amt = (Number(it.qty) || 0) * (Number(it.price) || 0);
+      sub += amt;
+      r.line(it.name || 'Item');
+      r.row('  ' + it.qty + ' x ' + money(it.price), money(amt));
+    });
+    r.divider();
+    const disc = Number($('discount').value) || 0;
+    const total = Math.max(0, sub - disc);
+    const paid = Number($('paid').value) || 0;
+    r.row('Subtotal', money(sub));
+    if (disc) r.row('Discount', '-' + money(disc));
+    r.bold().row('TOTAL', money(total)).bold(false);
+    r.row('Advance paid', money(paid));
+    if (total - paid > 0) r.bold().row('Balance due', money(total - paid)).bold(false);
+    if (v('delivery')) r.line('Delivery: ' + v('delivery'));
+
+    if ($('rxOn').checked) {
+      const cell = (s, w) => (s || '-').padEnd(w).slice(0, w);
+      const w = r.width >= 48 ? 9 : 6;
+      r.divider().bold().line('PRESCRIPTION').bold(false);
+      r.line(cell('', 3) + cell('SPH', w) + cell('CYL', w) + cell('AXIS', w) + cell('ADD', w).trimEnd());
+      r.line(cell('R', 3) + cell(v('rSph'), w) + cell(v('rCyl'), w) + cell(v('rAxis'), w) + cell(v('rAdd'), w).trimEnd());
+      r.line(cell('L', 3) + cell(v('lSph'), w) + cell(v('lCyl'), w) + cell(v('lAxis'), w) + cell(v('lAdd'), w).trimEnd());
+    }
+
+    r.divider().align('center').line('Thank you! Visit again').feed(4).cut();
+    return r;
+  }
+
+  function preview() {
+    const r = buildBill();
+    const paper = $('paper');
+    paper.innerHTML = '';
+    paper.style.width = 'calc(' + r.width + 'ch + 24px)';
+    r.lines.forEach((ln) => {
+      const s = document.createElement('span');
+      s.className = 'l' + (ln.align === 'c' ? ' c' : ln.align === 'r' ? ' r' : '') + (ln.bold ? ' b' : '') + (ln.big ? ' big' : '');
+      s.textContent = ln.text || ' ';
+      paper.appendChild(s);
+    });
+    $('byteCount').textContent = r.bytes.length + ' bytes';
+  }
+
+  /* ---------- Wire up ---------- */
+  renderItems();
+  preview();
+  document.querySelectorAll('input, select').forEach((el) => {
+    if (!el.closest('.item')) el.addEventListener('input', preview);
+  });
+  $('btnAddItem').addEventListener('click', () => { items.push({ name: '', qty: 1, price: 0 }); renderItems(); preview(); });
+  $('rxOn').addEventListener('change', () => { $('rxGrid').style.opacity = $('rxOn').checked ? 1 : 0.4; preview(); });
+
+  $('btnConnect').addEventListener('click', () => run('Connect', connect));
+  $('btnDisconnect').addEventListener('click', () => {
+    manualDisconnect = true;
+    clearTimeout(reconnectTimer);
+    if (device && device.gatt.connected) device.gatt.disconnect();
+    characteristic = null;
+    store.clear();
+    if (device && device.forget) device.forget().catch(() => {});
+    device = null;
+    log('Disconnected and forgot this printer');
+    setUi();
+  });
+  $('btnPrint').addEventListener('click', () => run('Print', () => send(buildBill().build())));
+  $('btnTest').addEventListener('click', () => run('Test print', () => {
+    const r = new Receipt(parseInt($('width').value, 10));
+    r.align('center').bold().line('OpticDigit').bold(false).line('Printer connected OK').line(new Date().toLocaleString('en-IN')).feed(4);
+    return send(r.build());
+  }));
+  $('btnHex').addEventListener('click', () => run('Raw send', () => {
+    const clean = $('hex').value.replace(/[^0-9a-f]/gi, '');
+    if (!clean || clean.length % 2) throw new Error('Enter an even number of hex digits, e.g. 1B4048656C6C6F0A');
+    return send(new Uint8Array(clean.match(/../g).map((h) => parseInt(h, 16))));
+  }));
+  $('btnClear').addEventListener('click', () => { $('log').innerHTML = ''; });
+
+  if (!supported) {
+    $('unsupported').hidden = false;
+    log('Web Bluetooth not available in this browser', 'err');
+  } else {
+    reconnectSaved().catch((e) => log('Auto-reconnect failed: ' + e.message, 'err'));
+  }
+  setUi();
+})();
+</script>
+</body>
+</html>
